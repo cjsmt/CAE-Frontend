@@ -1,0 +1,57 @@
+{
+    "metadata": {
+        "version": 4,
+        "type": "BufferGeometry"
+    },
+    "uuid": "AF2ADB07-FBC5-4BAE-AD60-123456789ABC",
+    "type": "BufferGeometry",
+    "data": {
+        "attributes": {
+            "position": {
+                "itemSize": 3,
+                "type": "Float32Array",
+                "array": [
+                    1,
+                    0,
+                    0,
+                    0,
+                    2,
+                    0,
+                    0,
+                    0,
+                    3,
+                    0,
+                    0,
+                    0
+                ]
+            },
+            "pressure": {
+                "itemSize": 1,
+                "type": "Float32Array",
+                "array": [
+                    0,
+                    1,
+                    2,
+                    3
+                ]
+            }
+        },
+        "index": {
+            "type": "Uint16Array",
+            "array": [
+                0,
+                2,
+                3,
+                0,
+                1,
+                2,
+                1,
+                2,
+                3,
+                0,
+                1,
+                3
+            ]
+        }
+    }
+}

@@ -1,0 +1,276 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>可视化平台</title>
+    <style>
+        #original-model {
+            width: 500px;
+            height: 500px;
+            margin: 0 0;
+            padding: 0 0;
+            display: inline-block;
+        }
+
+        #container {
+            width: 700px;
+            height: 500px;
+            margin: 0 0;
+            padding: 0 0;
+            border-color: black;
+            border-width: 3px;
+            display: inline-block;
+        }
+    </style>
+</head>
+
+<body>
+    <div id="original-model"></div>
+    <div id="container"></div>
+    <!-- <button onclick="downloadImg()">download img</button> -->
+
+    <!--  -->
+    <script>
+        downloadImg = function () {
+            render();
+            let a = document.createElement('a');
+            a.href = document.getElementById('container').children[0].toDataURL('image/jpeg');
+            console.log(a.href);
+
+            let iframe = "<iframe width='100%' height='100%' src='" + a.href + "'></iframe>";
+            let x = window.open();
+            x.document.open();
+            x.document.write(iframe);
+            x.document.close();
+        }
+    </script>
+
+    <!--  -->
+    <script async src="https://unpkg.com/es-module-shims@1.3.6/dist/es-module-shims.js"></script>
+
+    <!--  -->
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "./node_modules/three/build/three.module.js"
+            }
+        }
+    </script>
+
+    <script type="module">
+        // 主库
+        import * as THREE from 'three';
+        // 交互控件，如下拉选择列表
+        import { GUI } from './node_modules/three/examples/jsm/libs/lil-gui.module.min.js';
+        // 轨道控制器，控制场景的旋转，放缩
+        import { OrbitControls } from './node_modules/three/examples/jsm/controls/OrbitControls.js';
+        // 颜色映射
+        import { Lut } from './node_modules/three/examples/jsm/math/Lut.js';
+
+        // 模型数据geometry的数据地址
+        let url = 'data-demo.json';
+        // 三维物体结构信息应力数据
+        // let buffergeometry;
+        // 挂载DOM
+        let container, canvas;
+        // 透视相机-渲染模型，正交相机-渲染色条，场景，渲染器，颜色映射
+        let perpCamera, orthoCamera, renderer, lut;
+        // 模型贴图，精灵图
+        let mesh, sprite;
+
+        // 模型所在的场景，调色板所在场景
+        let scene, uiScene;
+        // 视野角度，视锥体近端面，远端面，是否显示线框，预览图片
+        let params = {
+            viewAngle: 60,
+            nearEnd: 1,
+            farEnd: 1000,
+            wireframe: false,
+            previewImg: function () {
+                render();
+                let a = document.createElement('a');
+                a.href = document.getElementById('container').children[0].toDataURL('image/jpeg');
+                // console.log(a.href);
+
+                let iframe = "<iframe width='100%' height='100%' src='" + a.href + "'></iframe>";
+                let x = window.open();
+                x.document.open();
+                x.document.write(iframe);
+                x.document.close();
+            }
+        };
+        // 颜色应力映射关系
+        const colormap = [[0.0, 0x0000FF], [0.25, 0x00FFFF], [0.5, 0x00FF00], [0.75, 0xFFFF00], [1.0, 0xFF0000]];
+
+        init();
+        // console.log(lut.lut);
+
+        function init() {
+            container = document.getElementById('container');
+
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(0xffffff);
+
+            uiScene = new THREE.Scene();
+
+            lut = new Lut();
+            lut.addColorMap('colormap', colormap);
+
+            const width = container.clientWidth;
+            const height = container.clientHeight;
+
+            // 透视相机,垂直视野角度，视锥体长宽比，近端面，远端面
+            perpCamera = new THREE.PerspectiveCamera(params.viewAngle, width / height, params.nearEnd, params.farEnd);
+            // 相机的位置
+            perpCamera.position.set(0, 0, 5);
+            scene.add(perpCamera);
+
+            // 设置正交相机，渲染色条
+            orthoCamera = new THREE.OrthographicCamera(- 1, 1, 1, - 1, 1, 2);
+            orthoCamera.position.set(0.5, 0, 1);
+
+            // 创建色条的精灵图
+            sprite = new THREE.Sprite(new THREE.SpriteMaterial({
+                map: new THREE.CanvasTexture(lut.createCanvas())
+            }));
+            // .scale 物体的局部缩放
+            sprite.scale.x = 0.075;
+            uiScene.add(sprite);
+
+            // 创建模型,形状，材质
+            mesh = new THREE.Mesh(undefined, new THREE.MeshLambertMaterial({
+                side: THREE.DoubleSide,
+                color: 0xFFFFFF,
+                vertexColors: true,
+                wireframe: params.wireframe
+            }));
+            // 模型放入场景渲染
+            scene.add(mesh);
+
+            // 加载模型
+            loadModel();
+
+
+            // 加入环境光，均匀照亮无阴影
+            const ambientlight = new THREE.AmbientLight(0xffffff, 1);
+            perpCamera.add(ambientlight);
+
+            // WebGL渲染器，执行抗锯齿
+            renderer = new THREE.WebGLRenderer({ antialias: true });
+            // 定义渲染器在渲染每一帧之前不自动清除其输出。
+            renderer.autoClear = false;
+            // 设置设备像素比
+            renderer.setPixelRatio(window.devicePixelRatio);
+            // 将输出canvas的大小调整为（width，height）
+            renderer.setSize(width, height);
+            // 加入DOM
+            canvas = renderer.domElement;
+            container.appendChild(canvas);
+
+            // 适应窗口放缩
+            container.addEventListener('resize', onContainerResize);
+
+            // 添加模型旋转，放缩的控制器
+            const controls = new OrbitControls(perpCamera, renderer.domElement);
+            controls.addEventListener('change', render);
+
+            const gui = new GUI();
+            gui.add(params, 'wireframe').onChange((e) => {
+
+                mesh.material.wireframe = e;
+                render();
+            });
+
+            gui.add(params, 'previewImg');
+
+        }
+
+
+
+        // 容器大小改变
+        function onContainerResize() {
+
+            const width = container.innerWidth;
+            const height = container.innerHeight;
+
+            perpCamera.aspect = width / height;
+            // 更新相机的投影矩阵
+            perpCamera.updateProjectionMatrix();
+
+            renderer.setSize(width, height);
+            render();
+
+        }
+
+        // 执行渲染
+        function render() {
+
+            renderer.clear();
+            renderer.render(scene, perpCamera);
+            renderer.render(uiScene, orthoCamera);
+
+        }
+
+        // 加载模型，加载本地或后端数据
+        function loadModel() {
+
+            const loader = new THREE.BufferGeometryLoader();
+            loader.load(url, function (geometry) {
+
+                // 几何体居中
+                geometry.center();
+                // 通过面片法向量的平均值计算每个顶点的法向量
+                geometry.computeVertexNormals();
+                // 模型颜色
+                const colors = [];
+                for (let i = 0, n = geometry.attributes.position.count; i < n; ++i) {
+
+                    colors.push(1, 1, 1);
+                }
+
+                // 添加颜色属性
+                geometry.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
+                mesh.geometry = geometry;
+                setColors();
+
+                render();
+            });
+        }
+
+        // 设定模型颜色
+        function setColors() {
+
+            lut.setColorMap('colormap');
+
+            const geometry = mesh.geometry;
+            const pressures = geometry.attributes.pressure;
+            const colors = geometry.attributes.color;
+
+            // 设定颜色有关数组的最值
+            lut.setMax(Math.max.apply(null, pressures.array));
+            lut.setMin(Math.min.apply(null, pressures.array));
+
+            // 给每一个顶点设定颜色
+            for (let i = 0; i < pressures.array.length; i++) {
+
+                const colorValue = pressures.array[i];
+
+                const color = lut.getColor(colorValue);
+
+                if (color === undefined) {
+                    console.log('Unable to determine color for value:', colorValue);
+                } else {
+                    colors.setXYZ(i, color.r, color.g, color.b);
+                }
+            }
+        }
+    </script>
+
+
+
+</body>
+
+</html>
