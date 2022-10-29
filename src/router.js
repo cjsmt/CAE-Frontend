@@ -1,7 +1,8 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import Home from './views/Home.vue'
 import Data from './views/data.vue'
-import DataStructure from './views/data-structure.vue'
+import Train from './views/train.vue'
+// import DataStructure from './views/data-structure.vue'
 import Welcome from './views/Welcome.vue'
 import Test from './views/test.vue'
 import Create from './views/create.vue'
@@ -31,8 +32,8 @@ const routes = [
         component: Home,
         redirect: '/welcome',
         children: [
-          { path: '/data-stress', component: Data },
-          { path: '/data-structure', component: DataStructure },
+          { path: '/data', component: Data },
+          { path: '/train', component: Train},
           { path: '/welcome', component: Welcome },
           { path: '/test', component: Test },
           { path: '/create', component: Create},

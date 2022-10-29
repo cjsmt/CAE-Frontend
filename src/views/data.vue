@@ -2,10 +2,40 @@
   <div class="app-container">
     <el-card class="mt20">
       <el-row>
+        <el-button plain type="primary" @click="append3DVisible = true"
+          >新增3D结构数据</el-button
+        >
         <el-button plain type="primary" @click="appendVisible = true"
-          >新增</el-button
+          >新增载荷数据</el-button
         >
       </el-row>
+
+      <el-dialog v-model="append3DVisible" title="新增3D结构数据">
+        <el-form :model="form_3D" label-width="80px" label-position="right">
+          <el-form-item>
+            <el-upload
+              v-model:file-list="shapeList"
+              class="upload-demo"
+              action="none"
+              multiple
+              drag
+              :auto-upload="false"
+              :accept="npy"
+            >
+              <el-icon class="el-icon--upload" style="width: 500px"
+                ><upload-filled
+              /></el-icon>
+              <div class="el-upload__text">拖拽文件 或 <em>点击上传</em></div>
+            </el-upload>
+          </el-form-item>
+        </el-form>
+        <template #footer>
+          <span class="dialog-footer">
+            <el-button @click="append3DVisible = false">取消</el-button>
+            <el-button type="primary" @click="handleAppend3D">确认</el-button>
+          </span>
+        </template>
+      </el-dialog>
 
       <el-dialog v-model="appendVisible" title="新增载荷数据">
         <el-form :model="form" label-width="120px" label-position="right">
@@ -89,7 +119,6 @@
         property="shape_3d_name"
         label="所属3D结构"
         align="center"
-        
       >
       </el-table-column>
       <el-table-column property="load" label="载荷大小" align="center">
@@ -202,6 +231,7 @@ export default {
     return {
       loading: false,
       appendVisible: false,
+      append3DVisible: false,
       editVisible: false,
       data: [],
       form: {
@@ -216,8 +246,14 @@ export default {
         file: null,
         update_time: null,
       },
+      form_3D: {
+        name: null,
+        file: null,
+        create_time: null,
+      },
       structures: [],
       fileList: [],
+      shapeList: [],
     };
   },
   created() {
@@ -250,6 +286,12 @@ export default {
         this.form[key] = null;
       }
       this.fileList = [];
+    },
+    clearForm3D() {
+      for (let key in this.form_3D) {
+        this.form_3D[key] = null;
+      }
+      this.shapeList = [];
     },
     getList() {
       this.loading = true;
@@ -330,6 +372,44 @@ export default {
       //   this.appendVisible = false;
       // });
     },
+    handleAppend3D() {
+      this.form_3D.create_time = this.getTime();
+
+      let fd = new FormData();
+      let num = this.shapeList.length;
+      for (let i = 0; i < num; i++) {
+        this.form_3D.file = this.shapeList[i].raw;
+        this.form_3D.name = this.form_3D.file.name.split(".")[0];
+
+        fd.append("name", this.form_3D.name);
+        fd.append("file", this.form_3D.file);
+        fd.append("create_time", this.form_3D.create_time);
+      }
+
+      axios({
+        url: "http://127.0.0.1:8000/data/add_shape/",
+        data: fd,
+        method: "post",
+        headers: {
+          "Content-Type": "multipart/form-data",
+        },
+      }).then((response) => {
+        if (response) {
+          this.$notify({
+            title: "成功",
+            message: "新增成功！",
+            type: "success",
+            duration: 2000,
+          });
+          console.log(response);
+        }
+        structure.list().then((response) => {
+          this.structures = response;
+        });
+        this.clearForm3D();
+        this.append3DVisible = false;
+      });
+    },
     // handleBeforeEdit(data) {
     //   this.editVisible = true;
     //   this.form = data;
@@ -350,9 +430,35 @@ export default {
     //     this.getList();
     //   });
     // },
-    handleDownload(id) {
-      console.log(id);
-    },
+    // handleDownload(id) {
+    //   console.log(id);
+    //   axios({
+    //     url: "http://127.0.0.1:8000/data/download_mises/?id=" + id,
+    //     method: "get",
+    //     responseType: "blob",
+    //   }).then((res) => {
+    //     console.log(res);
+    //     // console.log(res.headers['content-length'])
+    //     //获取文件名
+    //     let fileName = res.headers["content-disposition"]
+    //       .split(";")[1]
+    //       .split("=")[1];
+    //     fileName = decodeURIComponent(fileName);
+    //     console.log(fileName);
+    //     const blob = new Blob([res.data], {
+    //       type: "application/octet-stream",
+    //     });
+    //     //创建一个a标签并设置href属性，之后模拟人为点击下载文件
+    //     let link = document.createElement("a");
+    //     link.href = window.URL.createObjectURL(blob);
+    //     link.download = fileName; //设置下载文件名
+    //     document.body.appendChild(link);
+    //     link.click(); //模拟点击
+    //     //释放资源并删除创建的a标签
+    //     URL.revokeObjectURL(link.href);
+    //     document.body.removeChild(link);
+    //   });
+    // },
     handleRemove(id) {
       mises.remove(id).then((response) => {
         if (response) {
