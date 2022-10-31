@@ -2,12 +2,51 @@
   <div class="app-container">
     <el-card class="mt20">
       <el-row>
-        <el-button plain type="primary" @click="append3DVisible = true"
-          >新增3D结构数据</el-button
-        >
-        <el-button plain type="primary" @click="appendVisible = true"
-          >新增载荷数据</el-button
-        >
+        <el-col :span="14">
+          <el-button plain type="primary" @click="append3DVisible = true"
+            >新增3D结构数据</el-button
+          >
+          <el-button plain type="primary" @click="appendVisible = true"
+            >新增载荷数据</el-button
+          >
+        </el-col>
+        <el-col :span="10" style="float: right">
+          <el-select
+            plain
+            v-model="filterType"
+            style="margin: 0 15px"
+            placeholder="请选择所属3D结构"
+          >
+            <el-option label="All" value=""></el-option>
+            <el-option
+              v-for="item in structures"
+              :key="item.id"
+              :label="item.name"
+              :value="item.id"
+            ></el-option>
+          </el-select>
+          <el-button
+            plain
+            type="success"
+            @click="handleSelect"
+            v-if="filterType.length != 0"
+            >确认选择</el-button
+          >
+          <el-button
+            plain
+            type="warning"
+            @click="selectVisible = true"
+            v-if="filterType.length != 0"
+            >查看选择</el-button
+          >
+          <el-button
+            plain
+            type="danger"
+            @click="clearSelect"
+            v-if="filterType.length != 0"
+            >清空选择</el-button
+          >
+        </el-col>
       </el-row>
 
       <el-dialog v-model="append3DVisible" title="新增3D结构数据">
@@ -102,15 +141,49 @@
           </span>
         </template>
       </el-dialog>
+
+      <el-dialog v-model="selectVisible" title="已选择载荷数据">
+        <el-table
+          ref="selected_table"
+          v-loading="loading"
+          :data="selected_data"
+          @selection-change="handleSelectedSelectionChange"
+        >
+          <el-table-column type="selection" width="50px"></el-table-column>
+          <el-table-column property="id" label="序号" align="center">
+          </el-table-column>
+          <el-table-column property="name" label="载荷文件" align="center">
+          </el-table-column>
+        </el-table>
+        <template #footer>
+          <span class="dialog-footer">
+            <el-button
+              plain
+              type="danger"
+              @click="cancelSelect"
+              v-if="multipleSelectedSelection.length > 0"
+              >取消选择</el-button
+            >
+            <el-button @click="selectVisible = false">关闭</el-button>
+          </span>
+        </template>
+      </el-dialog>
     </el-card>
 
     <el-table
+      ref="table"
       v-loading="loading"
-      :data="data"
+      :data="filtedData"
       highlight-current-row
-      @current-change="handleCurrentChange"
+      @selection-change="handleSelectionChange"
       class="mt20"
+      style="height: 500px"
     >
+      <el-table-column
+        type="selection"
+        width="55"
+        v-if="filterType.length != 0"
+      ></el-table-column>
       <el-table-column property="id" label="序号" align="center">
       </el-table-column>
       <el-table-column property="name" label="载荷文件" align="center">
@@ -123,19 +196,6 @@
       </el-table-column>
       <el-table-column property="load" label="载荷大小" align="center">
       </el-table-column>
-      <!-- <el-table-column label="应力坐标" align="center">
-        <template v-slot="scope">
-          {{
-            parsePosition(
-              scope.row.position_x,
-              scope.row.position_y,
-              scope.row.position_z
-            )
-          }}
-        </template>
-      </el-table-column> -->
-      <!-- <el-table-column property="stress" label="应力大小(N)" align="center">
-      </el-table-column> -->
       <el-table-column label="创建时间" align="center">
         <template v-slot="scope">
           {{ parseTime(scope.row.update_time) }}
@@ -150,13 +210,13 @@
             @click="handleBeforeEdit(scope.row)"
             >编辑</el-button
           > -->
-          <el-button
+          <!-- <el-button
             size="small"
             plain
             type="success"
             @click="handleDownload(scope.row.id)"
             >下载</el-button
-          >
+          > -->
           <el-button
             size="small"
             plain
@@ -167,73 +227,29 @@
         </template>
       </el-table-column>
     </el-table>
-
-    <!-- <el-dialog v-model="editVisible" title="编辑应力数据">
-      <el-form :model="form" label-width="100px" label-position="right">
-        <el-form-item label="所属3D结构">
-          <el-select
-            v-model="form.structure_of_3d"
-            placeholder="请选择所属3D结构"
-          >
-            <el-option
-              v-for="item in structures"
-              :key="item.id"
-              :label="item.name"
-              :value="item.id"
-            />
-          </el-select>
-        </el-form-item>
-        <el-form-item label="应力坐标">
-          <el-col :span="8">
-            <el-input
-              v-model="form.position_x"
-              placeholder="X坐标"
-              style="width: 95%"
-            />
-          </el-col>
-          <el-col :span="8">
-            <el-input
-              v-model="form.position_y"
-              placeholder="Y坐标"
-              style="width: 95%"
-            />
-          </el-col>
-          <el-col :span="8">
-            <el-input
-              v-model="form.position_z"
-              placeholder="Z坐标"
-              style="width: 95%"
-            />
-          </el-col>
-        </el-form-item>
-        <el-form-item label="应力大小(N)">
-          <el-input v-model="form.stress" style="width: 35%" />
-        </el-form-item>
-      </el-form>
-      <template #footer>
-        <span class="dialog-footer">
-          <el-button @click="editVisible = false">取消</el-button>
-          <el-button type="primary" @click="handleEdit">确认</el-button>
-        </span>
-      </template>
-    </el-dialog> -->
   </div>
 </template>
 
 <script>
 import * as mises from "@/api/mises";
 import * as structure from "@/api/structure";
+import { thisExpression } from "@babel/types";
 import axios from "axios";
 
+let selectedData = [];
+
 export default {
-  name: "table",
+  // name: "table",
+
   data() {
     return {
       loading: false,
       appendVisible: false,
       append3DVisible: false,
+      selectVisible: false,
       editVisible: false,
       data: [],
+      selected_data: [],
       form: {
         name: null,
         shape_3d: null,
@@ -254,6 +270,10 @@ export default {
       structures: [],
       fileList: [],
       shapeList: [],
+
+      filterType: "",
+      multipleSelection: [],
+      multipleSelectedSelection: [],
     };
   },
   created() {
@@ -329,12 +349,6 @@ export default {
         fd.append("file", this.form.file);
         fd.append("update_time", this.form.update_time);
       }
-      // console.log(fd)
-      // fd.append("position_x", this.form.position_x);
-      // fd.append("position_y", this.form.position_y);
-      // fd.append("position_z", this.form.position_z);
-      // fd.append("stress", this.form.stress);
-      // fd.append("fea_file", this.form.fea_file);
 
       axios({
         url: "http://127.0.0.1:8000/data/add_mises/",
@@ -357,20 +371,6 @@ export default {
         this.clearForm();
         this.appendVisible = false;
       });
-
-      // stress.append(this.form).then((response) => {
-      //   if (response) {
-      //     this.$notify({
-      //       title: "成功",
-      //       message: "新增成功！",
-      //       type: "success",
-      //       duration: 2000,
-      //     });
-      //   }
-      //   this.getList();
-      //   // this.clearForm();
-      //   this.appendVisible = false;
-      // });
     },
     handleAppend3D() {
       this.form_3D.create_time = this.getTime();
@@ -410,55 +410,6 @@ export default {
         this.append3DVisible = false;
       });
     },
-    // handleBeforeEdit(data) {
-    //   this.editVisible = true;
-    //   this.form = data;
-    // },
-    // handleEdit() {
-    //   this.form.update_time = this.getTime();
-    //   stress.edit(this.form).then((response) => {
-    //     if (response) {
-    //       console.log(1);
-    //       this.$notify({
-    //         title: "成功",
-    //         message: "编辑成功！",
-    //         type: "success",
-    //         duration: 2000,
-    //       });
-    //     }
-    //     this.editVisible = false;
-    //     this.getList();
-    //   });
-    // },
-    // handleDownload(id) {
-    //   console.log(id);
-    //   axios({
-    //     url: "http://127.0.0.1:8000/data/download_mises/?id=" + id,
-    //     method: "get",
-    //     responseType: "blob",
-    //   }).then((res) => {
-    //     console.log(res);
-    //     // console.log(res.headers['content-length'])
-    //     //获取文件名
-    //     let fileName = res.headers["content-disposition"]
-    //       .split(";")[1]
-    //       .split("=")[1];
-    //     fileName = decodeURIComponent(fileName);
-    //     console.log(fileName);
-    //     const blob = new Blob([res.data], {
-    //       type: "application/octet-stream",
-    //     });
-    //     //创建一个a标签并设置href属性，之后模拟人为点击下载文件
-    //     let link = document.createElement("a");
-    //     link.href = window.URL.createObjectURL(blob);
-    //     link.download = fileName; //设置下载文件名
-    //     document.body.appendChild(link);
-    //     link.click(); //模拟点击
-    //     //释放资源并删除创建的a标签
-    //     URL.revokeObjectURL(link.href);
-    //     document.body.removeChild(link);
-    //   });
-    // },
     handleRemove(id) {
       mises.remove(id).then((response) => {
         if (response) {
@@ -472,8 +423,87 @@ export default {
         this.getList();
       });
     },
+    handleSelectionChange(val) {
+      this.multipleSelection = val;
+    },
+    handleSelect() {
+      if (this.multipleSelection.length != 0) {
+        selectedData = [];
+        for (let i = 0; i < this.multipleSelection.length; i++) {
+          selectedData.push(this.multipleSelection[i]);
+        }
+        this.$refs.table.clearSelection();
+        this.selected_data = selectedData;
+        this.$notify({
+          title: "成功",
+          message: "选择成功！",
+          type: "success",
+          duration: 1500,
+        });
+      } else {
+        this.$notify({
+          title: "失败",
+          message: "尚未勾选载荷数据！",
+          type: "error",
+          duration: 1500,
+        });
+      }
+    },
+    clearSelect() {
+      if (selectedData.length != 0) {
+        selectedData = [];
+        this.selected_data = [];
+        this.$refs.table.clearSelection();
+        this.$notify({
+          title: "成功",
+          message: "成功清空选择！",
+          type: "success",
+          duration: 1500,
+        });
+      } else {
+        this.$notify({
+          title: "失败",
+          message: "当前未选择任何载荷数据！",
+          type: "error",
+          duration: 1500,
+        });
+      }
+    },
+    handleSelectedSelectionChange(val) {
+      this.multipleSelectedSelection = val;
+    },
+    cancelSelect() {
+      console.log(this.multipleSelectedSelection.length);
+      for (let i = 0; i < this.multipleSelectedSelection.length; i++) {
+        // console.log(item);
+        console.log(this.multipleSelectedSelection[i]);
+        console.log(selectedData);
+        selectedData.forEach((item, index, arr) => {
+          if (item.id === this.multipleSelectedSelection[i].id) {
+            arr.splice(index, 1);
+          }
+        });
+      }
+      this.$refs.selected_table.clearSelection();
+      this.selected_data = selectedData;
+      this.selectVisible = false;
+      this.$notify({
+        title: "成功",
+        message: "取消选择成功！",
+        type: "success",
+        duration: 1500,
+      });
+    },
+  },
+  computed: {
+    filtedData() {
+      return this.data.filter((item) => {
+        return this.filterType === "" || item.shape_3d === this.filterType;
+      });
+    },
   },
 };
+export { selectedData };
 </script>
 
 <style scoped>
