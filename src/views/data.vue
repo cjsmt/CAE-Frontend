@@ -145,7 +145,6 @@
       <el-dialog v-model="selectVisible" title="已选择载荷数据">
         <el-table
           ref="selected_table"
-          v-loading="loading"
           :data="selected_data"
           @selection-change="handleSelectedSelectionChange"
         >

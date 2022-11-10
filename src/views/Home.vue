@@ -48,9 +48,8 @@
               <span>训练与测试</span>
             </template>
             <el-menu-item-group title="训练与测试">
-              <el-menu-item index="/test">应力数据生成</el-menu-item>
               <el-menu-item index="/train">训练</el-menu-item>
-              <el-menu-item index="/test">预测</el-menu-item>
+              <el-menu-item index="/test">测试</el-menu-item>
             </el-menu-item-group>
           </el-sub-menu>
 

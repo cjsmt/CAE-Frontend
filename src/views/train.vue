@@ -13,8 +13,9 @@
         <el-form-item label="迭代次数">
           <el-input-number v-model="form.epoch" :step="5" min="0" />
         </el-form-item>
-        <el-form-item label="训练集占比">
+        <el-form-item label="训练集比例">
           <el-slider
+            show-tooltip
             v-model="form.train_test_rate"
             :format-tooltip="formatTooltip"
           />
@@ -37,9 +38,79 @@
       </template>
     </el-dialog>
 
+    <el-dialog v-model="addDatasets" title="添加数据集">
+      <el-row>
+        <el-col :span="16">
+          <el-select
+            plain
+            v-model="datasetType"
+            style="margin: 0 10px"
+            placeholder="请选择数据集类别"
+          >
+            <el-option label="训练集" value="0"></el-option>
+            <el-option label="测试集" value="1"></el-option>
+          </el-select>
+          <el-select
+            plain
+            v-model="filterType"
+            style="margin: 0 10px"
+            placeholder="请选择所属3D结构"
+          >
+            <el-option label="All" value=""></el-option>
+            <el-option
+              v-for="item in structures"
+              :key="item.id"
+              :label="item.name"
+              :value="item.id"
+            ></el-option>
+          </el-select>
+        </el-col>
+        <el-col :span="8">
+          <el-button plain type="success" @click="handleSelect"
+            >确认选择</el-button
+          >
+          <!-- <el-button
+            plain
+            type="warning"
+            @click="selectVisible = true"
+            >查看选择</el-button
+          > -->
+          <el-button plain type="danger" @click="clearSelect"
+            >清空选择</el-button
+          >
+        </el-col>
+      </el-row>
+      <el-table
+        ref="data_table"
+        :data="filtedData"
+        highlight-current-row
+        @selection-change="handleSelectionChange"
+        style="height: 300px; margin-top: 10px"
+      >
+        <el-table-column type="selection" width="50px"></el-table-column>
+        <el-table-column property="id" label="序号" align="center">
+        </el-table-column>
+        <el-table-column property="name" label="载荷文件" align="center">
+        </el-table-column>
+        <el-table-column
+          property="shape_3d_name"
+          label="所属3D结构"
+          align="center"
+        ></el-table-column>
+      </el-table>
+      <template #footer>
+        <span class="dialog-footer">
+          <el-button plain @click="addDatasets = false">关闭</el-button>
+          <el-button plain type="primary" @click="handleAddDatasets"
+            >添加</el-button
+          >
+        </span>
+      </template>
+    </el-dialog>
+
     <el-table
       v-loading="loading"
-      :data="data"
+      :data="instance"
       highlight-current-row
       @selection-change="handleSelectionChange"
       class="mt20"
@@ -71,7 +142,7 @@
         ></el-table-column>
         <el-table-column
           prop="test_dataset_num"
-          label="测试集"
+          label="验证集"
           align="center"
           width="100px"
         ></el-table-column>
@@ -120,8 +191,20 @@
         label="损失值"
         align="center"
       ></el-table-column>
-      <el-table-column label="操作" align="center" fixed="right" width="200px">
+      <el-table-column label="操作" align="center" fixed="right" width="300px">
         <template #default="scope">
+          <el-button
+            :disabled="
+              scope.row.status == 1 ||
+              scope.row.status == 4 ||
+              scope.row.status == 5
+                ? true
+                : false
+            "
+            size="small"
+            @click="appendDatasets(scope.row.id)"
+            >添加数据集</el-button
+          >
           <el-button
             :disabled="scope.row.status == 4 ? true : false"
             :type="button_type[scope.row.status]"
@@ -134,20 +217,21 @@
             type="warning"
             size="small"
             plain
-            >导出模型</el-button
+            >开始测试</el-button
           >
         </template>
       </el-table-column>
     </el-table>
-
-    <el-dialog v-model="hyperParams" title="超参数"> </el-dialog>
   </div>
 </template>
 
 <script>
 import * as instance from "@/api/instance";
-import { selectedData } from "@/views/data.vue";
+import * as mises from "@/api/mises";
+import * as structure from "@/api/structure";
+// import {  } from "@/views/data.vue";
 import axios from "axios";
+import { range } from "lodash";
 
 export default {
   //   name: "table",
@@ -155,8 +239,13 @@ export default {
     return {
       loading: false,
       addInstance: false,
-      hyperParams: false,
+      addDatasets: false,
+      instance: [],
+      structures: [],
       data: [],
+      addTo: 0,
+      filterType: "",
+      datasetType: "",
       hyper_params: [],
       status_type: {
         0: "info",
@@ -164,6 +253,7 @@ export default {
         2: "primary",
         3: "danger",
         4: "success",
+        5: "success",
       },
       status_name: {
         0: "未开始",
@@ -171,6 +261,7 @@ export default {
         2: "测试中",
         3: "已暂停",
         4: "训练完成",
+        5: "测试完成",
       },
       button_type: {
         0: "success",
@@ -198,6 +289,7 @@ export default {
         create_time: null,
       },
       multipleSelection: [],
+      selectedData: [],
     };
   },
   created() {
@@ -233,8 +325,16 @@ export default {
     getList() {
       this.loading = true;
       instance.list().then((response) => {
-        this.data = response;
+        this.instance = response;
         this.loading = false;
+      });
+    },
+    getData() {
+      structure.list().then((response) => {
+        this.structures = response;
+      });
+      mises.list().then((response) => {
+        this.data = response;
       });
     },
     handleAppend() {
@@ -290,6 +390,47 @@ export default {
         });
       }
     },
+    appendDatasets(id) {
+      this.addTo = id;
+      console.log(this.addTo);
+      this.getData();
+      this.addDatasets = true;
+    },
+    handleAddDatasets() {
+      if (this.datasetType != "0" && this.datasetType != "1") {
+        this.$notify({
+          message: "请选择添加数据集类别。",
+          type: "error",
+          duration: 1500,
+        });
+        return;
+      }
+      this.handleSelect();
+      let form = {};
+      form.id = this.addTo;
+      form.train_dataset = [];
+      form.test_dataset = [];
+      if (this.datasetType == "0") {
+        for (let i = 0; i < this.selectedData.length; i++) {
+          form.train_dataset.push(this.selectedData[i].id);
+        }
+      } else if (this.datasetType == "1") {
+        for (let i = 0; i < this.selectedData.length; i++) {
+          form.test_dataset.push(this.selectedData[i].id);
+        }
+      }
+      instance.add_datasets(form).then((response) => {
+        if (response) {
+          this.$notify({
+            title: "成功",
+            message: "添加数据集成功！",
+            type: "success",
+            duration: 2000,
+          });
+        }
+        //   this.addDatasets = false;
+      });
+    },
     handleSelectionChange(val) {
       this.multipleSelection = val;
     },
@@ -297,9 +438,53 @@ export default {
       return val / 100;
     },
     showHyperParams(row) {},
+
+    handleSelect() {
+      if (this.multipleSelection.length != 0) {
+        this.selectedData = [];
+        for (let i = 0; i < this.multipleSelection.length; i++) {
+          this.selectedData.push(this.multipleSelection[i]);
+        }
+        // this.$refs.data_table.clearSelection();
+        this.$notify({
+          message: "选择成功！",
+          type: "success",
+          duration: 1500,
+        });
+      } else {
+        this.$notify({
+          message: "尚未勾选载荷数据！",
+          type: "error",
+          duration: 1500,
+        });
+      }
+    },
+    clearSelect() {
+      if (this.selectedData.length != 0) {
+        this.selected_data = [];
+        this.$refs.data_table.clearSelection();
+        this.$notify({
+          title: "成功",
+          message: "成功清空选择！",
+          type: "success",
+          duration: 1500,
+        });
+      } else {
+        this.$notify({
+          title: "失败",
+          message: "当前未选择任何载荷数据！",
+          type: "error",
+          duration: 1500,
+        });
+      }
+    },
   },
   computed: {
-    DData() {},
+    filtedData() {
+      return this.data.filter((item) => {
+        return this.filterType === "" || item.shape_3d === this.filterType;
+      });
+    },
   },
 };
 </script>

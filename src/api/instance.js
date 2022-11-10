@@ -16,4 +16,12 @@ function add(data) {
     })
 }
 
-export { list, add }
+function add_datasets(data) {
+    return request({
+        url: '/train/add_datasets/',
+        method: 'POST',
+        data: data,
+    })
+}
+
+export { list, add, add_datasets }
