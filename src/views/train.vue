@@ -9,25 +9,36 @@
     </el-card>
 
     <el-dialog v-model="addInstance" title="创建训练实例">
-      <el-form :model="form" label-width="120px" label-position="right">
-        <el-form-item label="迭代次数">
-          <el-input-number v-model="form.epoch" :step="5" min="0" />
+      <el-form
+        :model="form"
+        label-width="120px"
+        label-position="right"
+        inline="true"
+      >
+        <el-form-item label="epoch_size">
+          <el-input-number
+            v-model="form.epoch"
+            :step="5"
+            min="0"
+            style="width: 175px"
+          />
         </el-form-item>
-        <el-form-item label="训练集比例">
+        <!-- <el-form-item label="训练集比例">
           <el-slider
             show-tooltip
             v-model="form.train_test_rate"
             :format-tooltip="formatTooltip"
           />
-        </el-form-item>
+        </el-form-item> -->
         <el-form-item label="batch_size">
-          <el-input v-model="form.batch_size"></el-input>
+          <el-input v-model="form.batch_size" style="width: 175px" />
         </el-form-item>
+
         <el-form-item label="learning_rate">
-          <el-input v-model="form.learning_rate"></el-input>
+          <el-input v-model="form.learning_rate" style="width: 175px" />
         </el-form-item>
         <el-form-item label="decay_rate">
-          <el-input v-model="form.decay_rate"></el-input>
+          <el-input v-model="form.decay_rate" style="width: 175px" />
         </el-form-item>
       </el-form>
       <template #footer>
@@ -66,15 +77,12 @@
           </el-select>
         </el-col>
         <el-col :span="8">
-          <el-button plain type="success" @click="handleSelect"
-            >确认选择</el-button
-          >
-          <!-- <el-button
+          <el-button
             plain
-            type="warning"
-            @click="selectVisible = true"
-            >查看选择</el-button
-          > -->
+            :type="selected_type[selected]"
+            @click="handleSelect"
+            >{{ selected_name[selected] }}</el-button
+          >
           <el-button plain type="danger" @click="clearSelect"
             >清空选择</el-button
           >
@@ -98,6 +106,24 @@
           align="center"
         ></el-table-column>
       </el-table>
+      <el-dialog v-model="selectVisible" title="已选择数据集" append-to-body>
+        <el-table :data="selectedData">
+          <el-table-column property="id" label="序号" align="center">
+          </el-table-column>
+          <el-table-column property="name" label="载荷文件" align="center">
+          </el-table-column>
+          <el-table-column
+            property="shape_3d_name"
+            label="所属3D结构"
+            align="center"
+          ></el-table-column>
+        </el-table>
+        <template #footer>
+          <span class="dialog-footer">
+            <el-button @click="selectVisible = false">关闭</el-button>
+          </span>
+        </template>
+      </el-dialog>
       <template #footer>
         <span class="dialog-footer">
           <el-button plain @click="addDatasets = false">关闭</el-button>
@@ -206,18 +232,33 @@
             >添加数据集</el-button
           >
           <el-button
-            :disabled="scope.row.status == 4 ? true : false"
+            :disabled="
+              scope.row.status == 2 ||
+              scope.row.status == 4 ||
+              scope.row.status == 5 ||
+              scope.row.status == 6
+                ? true
+                : false
+            "
             :type="button_type[scope.row.status]"
             size="small"
-            @click="handleTrain"
+            @click="handleTrain(scope.row)"
             >{{ button_name[scope.row.status] }}</el-button
           >
           <el-button
-            :disabled="scope.row.status == 4 ? false : true"
+            :disabled="
+              scope.row.status == 2 ||
+              scope.row.status == 4 ||
+              scope.row.status == 5 ||
+              scope.row.status == 6
+                ? false
+                : true
+            "
             type="warning"
             size="small"
             plain
-            >开始测试</el-button
+            @click="handleTest(scope.row)"
+            >{{ button_name2[scope.row.status] }}</el-button
           >
         </template>
       </el-table-column>
@@ -240,6 +281,7 @@ export default {
       loading: false,
       addInstance: false,
       addDatasets: false,
+      selectVisible: false,
       instance: [],
       structures: [],
       data: [],
@@ -254,6 +296,7 @@ export default {
         3: "danger",
         4: "success",
         5: "success",
+        6: "danger",
       },
       status_name: {
         0: "未开始",
@@ -262,25 +305,39 @@ export default {
         3: "已暂停",
         4: "训练完成",
         5: "测试完成",
+        6: "已暂停",
       },
       button_type: {
         0: "success",
         1: "danger",
-        2: "danger",
+        2: "info",
         3: "warning",
         4: "info",
+        5: "info",
+        6: "info",
       },
       button_name: {
         0: "开始训练",
         1: "暂停训练",
-        2: "暂停训练",
+        2: "训练完成",
         3: "恢复训练",
         4: "训练完成",
+        5: "训练完成",
+        6: "训练完成",
+      },
+      button_name2: {
+        0: "开始测试",
+        1: "开始测试",
+        2: "暂停测试",
+        3: "开始测试",
+        4: "开始测试",
+        5: "查看结果",
+        6: "继续测试",
       },
       form: {
         epoch: 5,
         batch_size: 256,
-        train_test_rate: 70,
+        // train_test_rate: 70,
         learning_rate: 1e-3,
         decay_rate: 5e-5,
         train_dataset: [],
@@ -290,6 +347,15 @@ export default {
       },
       multipleSelection: [],
       selectedData: [],
+      selected: 0,
+      selected_name: {
+        0: "确认选择",
+        1: "查看选择",
+      },
+      selected_type: {
+        0: "success",
+        1: "warning",
+      },
     };
   },
   created() {
@@ -314,7 +380,7 @@ export default {
     clearForm() {
       this.form.epoch = 5;
       this.form.batch_size = 256;
-      this.form.train_test_rate = 70;
+      // this.form.train_test_rate = 70;
       this.form.learning_rate = 1e-3;
       this.form.decay_rate = 5e-5;
       this.form.train_dataset = [];
@@ -338,57 +404,54 @@ export default {
       });
     },
     handleAppend() {
-      if (selectedData.length != 0) {
-        // console.log(selectedData);
-        let datasets = [];
-        for (let i = 0; i < selectedData.length; i++) {
-          datasets.push(selectedData[i].id);
+      // if (selectedData.length != 0) {
+      // let datasets = [];
+      // for (let i = 0; i < selectedData.length; i++) {
+      //   datasets.push(selectedData[i].id);
+      // }
+      // this.form.train_test_rate = this.formatTooltip(this.form.train_test_rate);
+      // let k = Math.round(datasets.length * this.form.train_test_rate);
+      // datasets.sort(function () {
+      //   return 0.5 - Math.random();
+      // });
+      // this.form.train_dataset = datasets.slice(0, k);
+      // this.form.test_dataset = datasets.slice(k);
+
+      this.form.status = 0;
+      this.form.create_time = this.getTime();
+
+      // let fd = FormData();
+      // fd.append("epoch", this.form.epoch);
+      // fd.append("batch_size", this.form.batch_size);
+      // fd.append("learning_rate", this.form.learning_rate);
+      // fd.append("decay_rate", this.form.decay_rate);
+      // fd.append("status", false);
+      // fd.append("train_dataset", this.form.train_dataset);
+      // fd.append("test_dataset", this.form.test_dataset);
+      // fd.append("create_time", this.getTime());
+
+      instance.add(this.form).then((response) => {
+        if (response) {
+          this.$notify({
+            title: "成功",
+            message: "创建实例成功！",
+            type: "success",
+            duration: 2000,
+          });
+          // console.log(response);
         }
-        this.form.train_test_rate = this.formatTooltip(
-          this.form.train_test_rate
-        );
-        let k = Math.round(datasets.length * this.form.train_test_rate);
-        datasets.sort(function () {
-          return 0.5 - Math.random();
-        });
-        this.form.train_dataset = datasets.slice(0, k);
-        this.form.test_dataset = datasets.slice(k);
-
-        this.form.status = 0;
-        this.form.create_time = this.getTime();
-
-        // let fd = FormData();
-        // fd.append("epoch", this.form.epoch);
-        // fd.append("batch_size", this.form.batch_size);
-        // fd.append("learning_rate", this.form.learning_rate);
-        // fd.append("decay_rate", this.form.decay_rate);
-        // fd.append("status", false);
-        // fd.append("train_dataset", this.form.train_dataset);
-        // fd.append("test_dataset", this.form.test_dataset);
-        // fd.append("create_time", this.getTime());
-
-        instance.add(this.form).then((response) => {
-          if (response) {
-            this.$notify({
-              title: "成功",
-              message: "创建实例成功！",
-              type: "success",
-              duration: 2000,
-            });
-            // console.log(response);
-          }
-          this.getList();
-          this.clearForm();
-          this.addInstance = false;
-        });
-      } else {
-        this.$notify({
-          title: "失败",
-          message: "请先选择载荷数据作为数据集。",
-          type: "error",
-          duration: 1500,
-        });
-      }
+        this.getList();
+        this.clearForm();
+        this.addInstance = false;
+      });
+      // } else {
+      //   this.$notify({
+      //     title: "失败",
+      //     message: "请先选择载荷数据作为数据集。",
+      //     type: "error",
+      //     duration: 1500,
+      //   });
+      // }
     },
     appendDatasets(id) {
       this.addTo = id;
@@ -428,6 +491,7 @@ export default {
             duration: 2000,
           });
         }
+        this.getList();
         //   this.addDatasets = false;
       });
     },
@@ -437,9 +501,14 @@ export default {
     formatTooltip(val) {
       return val / 100;
     },
-    showHyperParams(row) {},
+    // showHyperParams(row) {
 
+    // },
     handleSelect() {
+      if (this.selected == 1) {
+        this.selectVisible = true;
+        return;
+      }
       if (this.multipleSelection.length != 0) {
         this.selectedData = [];
         for (let i = 0; i < this.multipleSelection.length; i++) {
@@ -458,10 +527,11 @@ export default {
           duration: 1500,
         });
       }
+      this.selected = 1;
     },
     clearSelect() {
       if (this.selectedData.length != 0) {
-        this.selected_data = [];
+        this.selectedData = [];
         this.$refs.data_table.clearSelection();
         this.$notify({
           title: "成功",
@@ -476,6 +546,30 @@ export default {
           type: "error",
           duration: 1500,
         });
+      }
+      this.selected = 0;
+    },
+
+    handleTrain(row) {
+      if (row.status == 0) {
+        row.status = 1;
+        instance.start_train(row.id)
+      } else if (row.status == 1) {
+        row.status = 3;
+      } else if (row.status == 3) {
+        row.status = 4;
+      }
+    },
+
+    handleTest(row) {
+      if (row.status == 4) {
+        row.status = 2;
+      } else if (row.status == 2) {
+        row.status = 6;
+      } else if (row.status == 6) {
+        row.status = 5;
+      }else if (row.status == 5) {
+        console.log(row)
       }
     },
   },

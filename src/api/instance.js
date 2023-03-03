@@ -24,4 +24,11 @@ function add_datasets(data) {
     })
 }
 
-export { list, add, add_datasets }
+function start_train(id) {
+    return request({
+        url: '/train/start_train/?id=' + id,
+        method: 'GET',
+    })
+}
+
+export { list, add, add_datasets, start_train }
